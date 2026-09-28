@@ -1,89 +1,115 @@
-import { useCallback, useState } from 'react'
-import { GAME_MIN, GAME_MAX, GAME_STATUS, FEEDBACK_TYPE } from '../utils/constants'
+import { useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import * as gameService from '../services/gameService'
+import { useAuth } from './useAuth'
+import { GAME_STATUS } from '../utils/constants'
 import { validateGuess } from '../utils/validation'
-import { calculateScore } from '../utils/calculateScore'
-
-function generateRandomNumber(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min
-}
+import { ApiError } from '../services/api'
 
 /**
- * Encapsulates all state and logic for a single guessing game.
- * Pass a fixed `presetTarget` for deterministic modes like the Daily Game;
- * omit it for a fresh random target (Practice mode).
+ * Drives the Practice Game page against the real backend.
+ * The backend is the source of truth: this hook only calls
+ * /api/game/start, /api/game/current and /api/game/{id}/guess and mirrors
+ * whatever they return — it does not decide Higher/Lower/Correct itself.
  */
-export function useGame({ min = GAME_MIN, max = GAME_MAX, presetTarget = null } = {}) {
-  const [targetNumber, setTargetNumber] = useState(
-    () => presetTarget ?? generateRandomNumber(min, max)
-  )
+export function useGame() {
+  const { logout } = useAuth()
+  const navigate = useNavigate()
+
+  const [game, setGame] = useState(null)
   const [guess, setGuess] = useState('')
-  const [attempts, setAttempts] = useState(0)
-  const [guessHistory, setGuessHistory] = useState([])
   const [feedback, setFeedback] = useState(null)
-  const [gameStatus, setGameStatus] = useState(GAME_STATUS.IN_PROGRESS)
-  const [score, setScore] = useState(0)
+  const [lastResult, setLastResult] = useState(null) // last GuessResponse (for bestScore / isNewPersonalBest)
   const [inputError, setInputError] = useState(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [apiError, setApiError] = useState(null)
 
-  const submitGuess = useCallback(() => {
-    if (gameStatus !== GAME_STATUS.IN_PROGRESS) return
+  const handleUnauthorized = useCallback(async () => {
+    await logout()
+    navigate('/login')
+  }, [logout, navigate])
 
-    const validationError = validateGuess(guess, min, max)
+  const loadGame = useCallback(async () => {
+    setIsLoading(true)
+    setApiError(null)
+    try {
+      const current = await gameService.getCurrentGame()
+      const active = current ?? (await gameService.startGame())
+      setGame(active)
+      setFeedback(null)
+      setLastResult(null)
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        await handleUnauthorized()
+        return
+      }
+      setApiError(error.message)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [handleUnauthorized])
+
+  useEffect(() => {
+    loadGame()
+  }, [loadGame])
+
+  async function submitGuess() {
+    if (!game || game.status !== GAME_STATUS.IN_PROGRESS || isSubmitting) return
+
+    const validationError = validateGuess(guess, game.minNumber, game.maxNumber)
     if (validationError) {
       setInputError(validationError)
       return
     }
-
     setInputError(null)
+    setApiError(null)
+    setIsSubmitting(true)
 
-    const numericGuess = Number(guess)
-    const nextAttempts = attempts + 1
-    setAttempts(nextAttempts)
-
-    let result
-    if (numericGuess < targetNumber) {
-      result = FEEDBACK_TYPE.HIGHER
-    } else if (numericGuess > targetNumber) {
-      result = FEEDBACK_TYPE.LOWER
-    } else {
-      result = FEEDBACK_TYPE.CORRECT
-    }
-
-    setFeedback(result)
-    setGuessHistory((previous) => [...previous, { guess: numericGuess, result }])
-
-    if (result === FEEDBACK_TYPE.CORRECT) {
-      const finalScore = calculateScore(nextAttempts)
-      setScore(finalScore)
-      setGameStatus(GAME_STATUS.WON)
-    }
-
-    setGuess('')
-  }, [guess, attempts, targetNumber, min, max, gameStatus])
-
-  const resetGame = useCallback(
-    (newPresetTarget = null) => {
-      setTargetNumber(newPresetTarget ?? generateRandomNumber(min, max))
+    try {
+      const result = await gameService.submitGuess(game.gameId, Number(guess))
+      setFeedback(result.direction)
+      setLastResult(result)
+      setGame((previous) => ({
+        ...previous,
+        guessCount: result.guessCount,
+        guesses: result.guesses,
+        status: result.isWon ? GAME_STATUS.WON : previous.status,
+        targetNumber: result.targetNumber ?? previous.targetNumber,
+      }))
       setGuess('')
-      setAttempts(0)
-      setGuessHistory([])
-      setFeedback(null)
-      setGameStatus(GAME_STATUS.IN_PROGRESS)
-      setScore(0)
-      setInputError(null)
-    },
-    [min, max]
-  )
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        await handleUnauthorized()
+        return
+      }
+      setApiError(error.message)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  async function resetGame() {
+    await loadGame()
+  }
 
   return {
-    targetNumber,
+    game,
     guess,
     setGuess,
-    attempts,
-    guessHistory,
+    attempts: game?.guessCount ?? 0,
+    guessHistory: game?.guesses ?? [],
     feedback,
-    gameStatus,
-    score,
+    gameStatus: game?.status ?? GAME_STATUS.IN_PROGRESS,
+    targetNumber: game?.targetNumber ?? null,
+    minNumber: game?.minNumber,
+    maxNumber: game?.maxNumber,
+    bestScore: lastResult?.bestScore ?? null,
+    isNewPersonalBest: lastResult?.isNewPersonalBest ?? false,
     inputError,
+    isLoading,
+    isSubmitting,
+    apiError,
     submitGuess,
     resetGame,
   }

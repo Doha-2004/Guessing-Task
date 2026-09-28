@@ -6,41 +6,38 @@ import GuessFeedback from '../components/game/GuessFeedback.jsx'
 import GuessHistory from '../components/game/GuessHistory.jsx'
 import GameResult from '../components/game/GameResult.jsx'
 import Card from '../components/common/Card.jsx'
+import Loader from '../components/common/Loader.jsx'
+import ErrorMessage from '../components/common/ErrorMessage.jsx'
 import { useGame } from '../hooks/useGame'
-import { useAuth } from '../hooks/useAuth'
-import { GAME_MIN, GAME_MAX, GAME_STATUS } from '../utils/constants'
-import { recordPracticeResult } from '../utils/stats'
-import { useEffect, useRef } from 'react'
+import { GAME_STATUS } from '../utils/constants'
 
 export default function PracticeGame() {
   const navigate = useNavigate()
-  const { currentUser } = useAuth()
   const {
-    targetNumber,
     guess,
     setGuess,
     attempts,
     guessHistory,
     feedback,
     gameStatus,
-    score,
+    targetNumber,
+    minNumber,
+    maxNumber,
+    bestScore,
     inputError,
+    isLoading,
+    isSubmitting,
+    apiError,
     submitGuess,
     resetGame,
-  } = useGame({ min: GAME_MIN, max: GAME_MAX })
+  } = useGame()
 
-  const hasRecordedWin = useRef(false)
-
-  useEffect(() => {
-    if (gameStatus === GAME_STATUS.WON && !hasRecordedWin.current) {
-      recordPracticeResult(currentUser?.id, score)
-      hasRecordedWin.current = true
-    }
-  }, [gameStatus, score, currentUser])
-
-  function handlePlayAgain() {
-    hasRecordedWin.current = false
-    resetGame()
+  if (isLoading) {
+    return (
+      <PageContainer>
+        <Loader label="Starting game..." />
+      </PageContainer>
+    )
   }
 
   return (
@@ -48,17 +45,19 @@ export default function PracticeGame() {
       <GameHeader
         title="Practice Mode"
         description="Find the hidden number using the Higher / Lower hints."
-        min={GAME_MIN}
-        max={GAME_MAX}
+        min={minNumber}
+        max={maxNumber}
         attempts={attempts}
       />
+
+      <ErrorMessage message={apiError} />
 
       {gameStatus === GAME_STATUS.WON ? (
         <GameResult
           targetNumber={targetNumber}
           attempts={attempts}
-          score={score}
-          onPlayAgain={handlePlayAgain}
+          score={bestScore}
+          onPlayAgain={resetGame}
           onBackToDashboard={() => navigate('/dashboard')}
         />
       ) : (
@@ -68,8 +67,9 @@ export default function PracticeGame() {
             setGuess={setGuess}
             onSubmit={submitGuess}
             error={inputError}
-            min={GAME_MIN}
-            max={GAME_MAX}
+            min={minNumber}
+            max={maxNumber}
+            isSubmitting={isSubmitting}
           />
           <GuessFeedback feedback={feedback} />
         </Card>

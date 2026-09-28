@@ -12,7 +12,7 @@ export default function Register() {
   const { register } = useAuth()
 
   const [formValues, setFormValues] = useState({
-    name: '',
+    username: '',
     email: '',
     password: '',
     confirmPassword: '',
@@ -61,13 +61,13 @@ export default function Register() {
 
         <form onSubmit={handleSubmit} noValidate>
           <Input
-            id="name"
-            label="Name"
-            autoComplete="name"
-            value={formValues.name}
-            onChange={handleChange('name')}
-            error={fieldErrors.name}
-            placeholder="Your name"
+            id="username"
+            label="Username"
+            autoComplete="username"
+            value={formValues.username}
+            onChange={handleChange('username')}
+            error={fieldErrors.username}
+            placeholder="Letters, numbers, . _ - only"
           />
           <Input
             id="email"
@@ -87,7 +87,7 @@ export default function Register() {
             value={formValues.password}
             onChange={handleChange('password')}
             error={fieldErrors.password}
-            placeholder="At least 6 characters"
+            placeholder="At least 8 characters, mixed case, number & symbol"
           />
           <Input
             id="confirmPassword"

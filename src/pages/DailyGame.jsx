@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Flame } from 'lucide-react'
 import PageContainer from '../components/layout/PageContainer.jsx'
@@ -8,139 +8,129 @@ import GuessFeedback from '../components/game/GuessFeedback.jsx'
 import GuessHistory from '../components/game/GuessHistory.jsx'
 import GameResult from '../components/game/GameResult.jsx'
 import Card from '../components/common/Card.jsx'
+import Loader from '../components/common/Loader.jsx'
+import ErrorMessage from '../components/common/ErrorMessage.jsx'
 import { useAuth } from '../hooks/useAuth'
-import { getItem, setItem } from '../utils/storage'
-import { STORAGE_KEYS, GAME_MIN, GAME_MAX, GAME_STATUS, FEEDBACK_TYPE } from '../utils/constants'
-import { getDailyNumber, getTodayKey } from '../utils/dailyNumber'
+import * as dailyService from '../services/dailyService'
+import { ApiError } from '../services/api'
+import { GAME_STATUS } from '../utils/constants'
 import { validateGuess } from '../utils/validation'
-import { calculateScore } from '../utils/calculateScore'
-import { recordDailyResult } from '../utils/stats'
-
-function dailyStorageKey(userId) {
-  return `${STORAGE_KEYS.DAILY_GAME}_${userId}`
-}
-
-function getYesterdayKey(todayKey) {
-  const date = new Date(todayKey)
-  date.setDate(date.getDate() - 1)
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-const DEFAULT_RECORD = {
-  date: null,
-  gameStatus: GAME_STATUS.IN_PROGRESS,
-  attempts: 0,
-  guessHistory: [],
-  score: 0,
-  streak: 0,
-  lastCompletedDate: null,
-}
 
 export default function DailyGame() {
   const navigate = useNavigate()
-  const { currentUser } = useAuth()
-  const todayKey = useMemo(() => getTodayKey(), [])
-  const targetNumber = useMemo(() => getDailyNumber(todayKey), [todayKey])
+  const { currentUser, refreshCurrentUser, logout } = useAuth()
 
-  const [record, setRecord] = useState(DEFAULT_RECORD)
+  const [daily, setDaily] = useState(null)
   const [guess, setGuess] = useState('')
   const [feedback, setFeedback] = useState(null)
+  const [lastResult, setLastResult] = useState(null)
   const [inputError, setInputError] = useState(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [apiError, setApiError] = useState(null)
+
+  const handleUnauthorized = useCallback(async () => {
+    await logout()
+    navigate('/login')
+  }, [logout, navigate])
+
+  const loadDaily = useCallback(async () => {
+    setIsLoading(true)
+    setApiError(null)
+    try {
+      const status = await dailyService.getDailyStatus()
+      // Only call /start when today's challenge hasn't begun yet — if it's
+      // already won or in progress, /api/daily already gave us everything.
+      const active =
+        status.hasStarted || status.status === GAME_STATUS.WON
+          ? status
+          : await dailyService.startDaily()
+      setDaily(active)
+      setFeedback(null)
+      setLastResult(null)
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        await handleUnauthorized()
+        return
+      }
+      setApiError(error.message)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [handleUnauthorized])
 
   useEffect(() => {
-    if (!currentUser) return
+    loadDaily()
+  }, [loadDaily])
 
-    const stored = getItem(dailyStorageKey(currentUser.id), DEFAULT_RECORD)
+  async function handleSubmitGuess() {
+    if (!daily || daily.status !== GAME_STATUS.IN_PROGRESS || isSubmitting) return
 
-    if (stored.date === todayKey) {
-      setRecord(stored)
-    } else {
-      // A new day: reset today's progress but keep the streak metadata intact.
-      const freshRecord = {
-        ...DEFAULT_RECORD,
-        date: todayKey,
-        streak: stored.streak || 0,
-        lastCompletedDate: stored.lastCompletedDate || null,
-      }
-      setRecord(freshRecord)
-      setItem(dailyStorageKey(currentUser.id), freshRecord)
-    }
-  }, [currentUser, todayKey])
-
-  function persist(nextRecord) {
-    setRecord(nextRecord)
-    setItem(dailyStorageKey(currentUser.id), nextRecord)
-  }
-
-  function handleSubmitGuess() {
-    if (record.gameStatus !== GAME_STATUS.IN_PROGRESS) return
-
-    const validationError = validateGuess(guess, GAME_MIN, GAME_MAX)
+    const validationError = validateGuess(guess, daily.minNumber, daily.maxNumber)
     if (validationError) {
       setInputError(validationError)
       return
     }
     setInputError(null)
+    setApiError(null)
+    setIsSubmitting(true)
 
-    const numericGuess = Number(guess)
-    const nextAttempts = record.attempts + 1
+    try {
+      const result = await dailyService.submitDailyGuess(Number(guess))
+      setFeedback(result.direction)
+      setLastResult(result)
+      setDaily((previous) => ({
+        ...previous,
+        guessCount: result.guessCount,
+        guesses: result.guesses,
+        status: result.isWon ? GAME_STATUS.WON : previous.status,
+        targetNumber: result.targetNumber ?? previous.targetNumber,
+      }))
+      setGuess('')
 
-    let result
-    if (numericGuess < targetNumber) {
-      result = FEEDBACK_TYPE.HIGHER
-    } else if (numericGuess > targetNumber) {
-      result = FEEDBACK_TYPE.LOWER
-    } else {
-      result = FEEDBACK_TYPE.CORRECT
-    }
-
-    setFeedback(result)
-    const nextHistory = [...record.guessHistory, { guess: numericGuess, result }]
-
-    if (result === FEEDBACK_TYPE.CORRECT) {
-      const finalScore = calculateScore(nextAttempts)
-      const yesterdayKey = getYesterdayKey(todayKey)
-      const continuesStreak = record.lastCompletedDate === yesterdayKey
-      const newStreak = continuesStreak ? record.streak + 1 : 1
-
-      const nextRecord = {
-        ...record,
-        attempts: nextAttempts,
-        guessHistory: nextHistory,
-        gameStatus: GAME_STATUS.WON,
-        score: finalScore,
-        streak: newStreak,
-        lastCompletedDate: todayKey,
+      if (result.isWon) {
+        // ProfileResponse.dailyStreak is the only place the streak lives —
+        // refresh it so the banner below reflects today's win.
+        await refreshCurrentUser()
       }
-
-      persist(nextRecord)
-      recordDailyResult(currentUser.id, finalScore, newStreak)
-    } else {
-      persist({ ...record, attempts: nextAttempts, guessHistory: nextHistory })
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        await handleUnauthorized()
+        return
+      }
+      setApiError(error.message)
+    } finally {
+      setIsSubmitting(false)
     }
-
-    setGuess('')
   }
 
-  const isComplete = record.gameStatus === GAME_STATUS.WON
+  if (isLoading) {
+    return (
+      <PageContainer>
+        <Loader label="Loading today's challenge..." />
+      </PageContainer>
+    )
+  }
+
+  const isComplete = daily?.status === GAME_STATUS.WON
+  const streak = currentUser?.dailyStreak ?? 0
 
   return (
     <PageContainer>
       <GameHeader
         title="Today's Challenge"
         description="Guess today's hidden number."
-        min={GAME_MIN}
-        max={GAME_MAX}
-        attempts={record.attempts}
+        min={daily?.minNumber}
+        max={daily?.maxNumber}
+        attempts={daily?.guessCount ?? 0}
       />
+
+      <ErrorMessage message={apiError} />
 
       <Card className="daily-streak-banner">
         <Flame size={20} aria-hidden="true" />
         <span>
-          Current Streak: <strong>{record.streak}</strong> {record.streak === 1 ? 'Day' : 'Days'}
+          Current Streak: <strong>{streak}</strong> {streak === 1 ? 'Day' : 'Days'}
         </span>
       </Card>
 
@@ -151,9 +141,9 @@ export default function DailyGame() {
             <p>Come back tomorrow for a brand new number.</p>
           </Card>
           <GameResult
-            targetNumber={targetNumber}
-            attempts={record.attempts}
-            score={record.score}
+            targetNumber={daily?.targetNumber}
+            attempts={daily?.guessCount ?? 0}
+            score={lastResult?.bestScore ?? currentUser?.bestScore ?? null}
             onBackToDashboard={() => navigate('/dashboard')}
             showPlayAgain={false}
           />
@@ -165,8 +155,9 @@ export default function DailyGame() {
             setGuess={setGuess}
             onSubmit={handleSubmitGuess}
             error={inputError}
-            min={GAME_MIN}
-            max={GAME_MAX}
+            min={daily?.minNumber}
+            max={daily?.maxNumber}
+            isSubmitting={isSubmitting}
           />
           <GuessFeedback feedback={feedback} />
         </Card>
@@ -174,7 +165,7 @@ export default function DailyGame() {
 
       <Card>
         <h2 className="section-title">Guess History</h2>
-        <GuessHistory history={record.guessHistory} />
+        <GuessHistory history={daily?.guesses ?? []} />
       </Card>
     </PageContainer>
   )

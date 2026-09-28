@@ -1,29 +1,29 @@
-import { useEffect, useState } from 'react'
 import { Trophy, Gamepad2, CheckCircle2, Flame, Calendar } from 'lucide-react'
 import PageContainer from '../components/layout/PageContainer.jsx'
 import WelcomeSection from '../components/dashboard/WelcomeSection.jsx'
 import StatsCard from '../components/dashboard/StatsCard.jsx'
 import GameModeCard from '../components/dashboard/GameModeCard.jsx'
 import { useAuth } from '../hooks/useAuth'
-import { getStats } from '../utils/stats'
 
 export default function Dashboard() {
   const { currentUser } = useAuth()
-  const [stats, setStats] = useState(getStats(currentUser?.id))
 
-  useEffect(() => {
-    setStats(getStats(currentUser?.id))
-  }, [currentUser])
+  // currentUser is the real ProfileResponse from GET /api/auth/me
+  // (fetched by AuthContext), so these are live numbers, not mock data.
+  const bestScore = currentUser?.bestScore ?? 0
+  const gamesPlayed = currentUser?.gamesPlayed ?? 0
+  const gamesWon = currentUser?.gamesWon ?? 0
+  const dailyStreak = currentUser?.dailyStreak ?? 0
 
   return (
     <PageContainer>
-      <WelcomeSection name={currentUser?.name?.split(' ')[0] || 'Player'} />
+      <WelcomeSection name={currentUser?.username || 'Player'} />
 
       <section className="stats-grid">
-        <StatsCard icon={Trophy} label="Best Score" value={stats.bestScore} />
-        <StatsCard icon={Gamepad2} label="Games Played" value={stats.gamesPlayed} />
-        <StatsCard icon={CheckCircle2} label="Games Won" value={stats.gamesWon} />
-        <StatsCard icon={Flame} label="Daily Streak" value={stats.dailyStreak} />
+        <StatsCard icon={Trophy} label="Best Score" value={bestScore} />
+        <StatsCard icon={Gamepad2} label="Games Played" value={gamesPlayed} />
+        <StatsCard icon={CheckCircle2} label="Games Won" value={gamesWon} />
+        <StatsCard icon={Flame} label="Daily Streak" value={dailyStreak} />
       </section>
 
       <section className="game-modes-grid">

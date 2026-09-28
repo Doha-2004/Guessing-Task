@@ -12,7 +12,10 @@
 // from the frontend — if login "succeeds" but you're immediately treated as
 // logged out, this is the first thing to check with whoever runs the API.
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://guessing-task-api.runasp.net'
+const RAW_API_BASE_URL = import.meta.env.DEV
+  ? ''
+  : import.meta.env.VITE_API_URL || 'https://guessing-task-api.runasp.net'
+const API_BASE_URL = RAW_API_BASE_URL.replace(/\/+$/, '')
 
 export class ApiError extends Error {
   constructor(message, status) {

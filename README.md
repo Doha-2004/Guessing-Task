@@ -43,7 +43,7 @@ The player receives a number range.
 For example:
 
 ```text
-Range: 1 - 100
+Range: 1 - 43
 ```
 
 The player enters a guess.
@@ -51,7 +51,7 @@ The player enters a guess.
 Example:
 
 ```text
-Guess: 50
+Guess: 20
 Result: Higher
 ```
 
@@ -60,14 +60,14 @@ This means the hidden number is higher than `50`.
 The player tries again:
 
 ```text
-Guess: 75
+Guess: 30
 Result: Lower
 ```
 
 Then:
 
 ```text
-Guess: 63
+Guess: 23
 Result: Correct
 ```
 
@@ -84,7 +84,7 @@ There are three main types of feedback:
 The hidden number is greater than the player's guess.
 
 ```text
-50 → Higher ↑
+20 → Higher ↑
 ```
 
 ### Lower
@@ -92,7 +92,7 @@ The hidden number is greater than the player's guess.
 The hidden number is smaller than the player's guess.
 
 ```text
-75 → Lower ↓
+30 → Lower ↓
 ```
 
 ### Correct
@@ -100,7 +100,7 @@ The hidden number is smaller than the player's guess.
 The player found the hidden number.
 
 ```text
-63 → Correct ✓
+23 → Correct ✓
 ```
 
 The Front-End should display these results clearly so the user immediately understands what to do next.

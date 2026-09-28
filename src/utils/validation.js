@@ -1,4 +1,7 @@
-// Shared validation helpers for forms and the game input
+// Shared validation helpers for forms and the game input.
+// The username/password pattern checks mirror the backend's own
+// RegisterRequest schema so the user gets instant feedback instead of
+// waiting on a 400 response for something we can already tell will fail.
 
 export function isValidEmail(email) {
   if (!email) return false
@@ -6,13 +9,30 @@ export function isValidEmail(email) {
   return emailPattern.test(email.trim())
 }
 
-export function validateLoginForm({ email, password }) {
+// Backend pattern: ^[A-Za-z0-9_.-]+$, length 3–50
+export function isValidUsername(username) {
+  if (!username) return false
+  const usernamePattern = /^[A-Za-z0-9_.-]+$/
+  return (
+    username.length >= 3 && username.length <= 50 && usernamePattern.test(username)
+  )
+}
+
+// Backend pattern: at least one lowercase, one uppercase, one digit, one
+// special character, minimum length 8.
+export function isValidPassword(password) {
+  if (!password) return false
+  const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/
+  return passwordPattern.test(password)
+}
+
+// The backend's field is called "login" (not "email") — it appears to
+// accept either a username or an email, so we only check it's non-empty.
+export function validateLoginForm({ login, password }) {
   const errors = {}
 
-  if (!email || !email.trim()) {
-    errors.email = 'Email is required.'
-  } else if (!isValidEmail(email)) {
-    errors.email = 'Enter a valid email address.'
+  if (!login || !login.trim()) {
+    errors.login = 'Email or username is required.'
   }
 
   if (!password) {
@@ -22,11 +42,14 @@ export function validateLoginForm({ email, password }) {
   return errors
 }
 
-export function validateRegisterForm({ name, email, password, confirmPassword }) {
+export function validateRegisterForm({ username, email, password, confirmPassword }) {
   const errors = {}
 
-  if (!name || !name.trim()) {
-    errors.name = 'Name is required.'
+  if (!username || !username.trim()) {
+    errors.username = 'Username is required.'
+  } else if (!isValidUsername(username.trim())) {
+    errors.username =
+      'Username must be 3-50 characters and can only contain letters, numbers, dots, underscores and dashes.'
   }
 
   if (!email || !email.trim()) {
@@ -37,8 +60,9 @@ export function validateRegisterForm({ name, email, password, confirmPassword })
 
   if (!password) {
     errors.password = 'Password is required.'
-  } else if (password.length < 6) {
-    errors.password = 'Password must be at least 6 characters.'
+  } else if (!isValidPassword(password)) {
+    errors.password =
+      'Password must be at least 8 characters and include an uppercase letter, a lowercase letter, a number and a special character.'
   }
 
   if (!confirmPassword) {

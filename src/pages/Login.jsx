@@ -11,7 +11,9 @@ export default function Login() {
   const navigate = useNavigate()
   const { login } = useAuth()
 
-  const [formValues, setFormValues] = useState({ email: '', password: '' })
+  // The backend's login field is called "login" and accepts either a
+  // username or an email — see services/authService.js.
+  const [formValues, setFormValues] = useState({ login: '', password: '' })
   const [fieldErrors, setFieldErrors] = useState({})
   const [formError, setFormError] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -56,14 +58,14 @@ export default function Login() {
 
         <form onSubmit={handleSubmit} noValidate>
           <Input
-            id="email"
-            label="Email"
-            type="email"
-            autoComplete="email"
-            value={formValues.email}
-            onChange={handleChange('email')}
-            error={fieldErrors.email}
-            placeholder="you@example.com"
+            id="login"
+            label="Email or Username"
+            type="text"
+            autoComplete="username"
+            value={formValues.login}
+            onChange={handleChange('login')}
+            error={fieldErrors.login}
+            placeholder="you@example.com or your username"
           />
           <Input
             id="password"

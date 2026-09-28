@@ -3,14 +3,22 @@ import PageContainer from '../components/layout/PageContainer.jsx'
 import Card from '../components/common/Card.jsx'
 import StatsCard from '../components/dashboard/StatsCard.jsx'
 import { useAuth } from '../hooks/useAuth'
-import { getStats } from '../utils/stats'
 
 export default function Profile() {
   const { currentUser } = useAuth()
-  const stats = getStats(currentUser?.id)
 
-  const winRate =
-    stats.gamesPlayed > 0 ? Math.round((stats.gamesWon / stats.gamesPlayed) * 100) : 0
+  const bestScore = currentUser?.bestScore ?? 0
+  const gamesPlayed = currentUser?.gamesPlayed ?? 0
+  const gamesWon = currentUser?.gamesWon ?? 0
+  const dailyStreak = currentUser?.dailyStreak ?? 0
+  const winRate = gamesPlayed > 0 ? Math.round((gamesWon / gamesPlayed) * 100) : 0
+
+  const memberSince = currentUser?.createdAt
+    ? new Date(currentUser.createdAt).toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'long',
+      })
+    : '—'
 
   return (
     <PageContainer>
@@ -19,22 +27,17 @@ export default function Profile() {
           <User size={28} aria-hidden="true" />
         </div>
         <div>
-          <h1>{currentUser?.name}</h1>
+          <h1>{currentUser?.username}</h1>
           <p>{currentUser?.email}</p>
-          <p className="profile-member-since">
-            Member since {new Date(currentUser?.id).toLocaleDateString(undefined, {
-              year: 'numeric',
-              month: 'long',
-            })}
-          </p>
+          <p className="profile-member-since">Member since {memberSince}</p>
         </div>
       </Card>
 
       <section className="stats-grid">
-        <StatsCard icon={Trophy} label="Best Score" value={stats.bestScore} />
-        <StatsCard icon={Gamepad2} label="Games Played" value={stats.gamesPlayed} />
-        <StatsCard icon={CheckCircle2} label="Games Won" value={stats.gamesWon} />
-        <StatsCard icon={Flame} label="Current Streak" value={stats.dailyStreak} />
+        <StatsCard icon={Trophy} label="Best Score" value={bestScore} />
+        <StatsCard icon={Gamepad2} label="Games Played" value={gamesPlayed} />
+        <StatsCard icon={CheckCircle2} label="Games Won" value={gamesWon} />
+        <StatsCard icon={Flame} label="Current Streak" value={dailyStreak} />
       </section>
 
       <Card className="profile-performance">
@@ -48,10 +51,6 @@ export default function Profile() {
         </div>
         <div className="performance-bar">
           <div className="performance-bar-fill" style={{ width: `${winRate}%` }} />
-        </div>
-        <div className="performance-row">
-          <span>Best streak</span>
-          <span>{stats.bestStreak} days</span>
         </div>
       </Card>
     </PageContainer>

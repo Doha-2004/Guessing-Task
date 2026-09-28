@@ -25,8 +25,8 @@ export default function GameResult({
           <span className="game-result-label">Attempts</span>
         </div>
         <div>
-          <span className="game-result-value">{score}</span>
-          <span className="game-result-label">Score</span>
+          <span className="game-result-value">{score ?? '—'}</span>
+          <span className="game-result-label">Best Score</span>
         </div>
       </div>
 
