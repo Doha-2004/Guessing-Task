@@ -1,6 +1,6 @@
 import { Target } from 'lucide-react'
 
-export default function GameHeader({ title, description, min, max, attempts }) {
+export default function GameHeader({ title, description, attempts }) {
   return (
     <div className="game-header">
       <div className="game-header-title">
@@ -11,9 +11,6 @@ export default function GameHeader({ title, description, min, max, attempts }) {
         </div>
       </div>
       <div className="game-header-meta">
-        <span>
-          Range: {min}–{max}
-        </span>
         <span>Attempts: {attempts}</span>
       </div>
     </div>

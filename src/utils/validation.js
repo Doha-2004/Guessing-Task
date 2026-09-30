@@ -74,26 +74,33 @@ export function validateRegisterForm({ username, email, password, confirmPasswor
   return errors
 }
 
-export function validateGuess(value, min, max) {
-  if (value === '' || value === null || value === undefined) {
-    return 'Enter a number before guessing.'
+// Basic input checks only. There is deliberately NO min/max range here —
+// any whole number (negative, zero, or very large) is sent to the backend,
+// which decides whether the guess is acceptable and what the result is.
+export function validateGuess(value) {
+  const text = value === null || value === undefined ? '' : String(value).trim()
+
+  if (text === '') {
+    return 'Enter your guess before submitting.'
   }
 
-  const numericValue = Number(value)
-
-  if (Number.isNaN(numericValue)) {
-    return 'Guesses must be a number.'
+  // A whole number: optional leading minus, then digits only.
+  if (/^-?\d+$/.test(text)) {
+    // Past 2^53 a JS number can't represent the digits exactly, so what we
+    // send wouldn't match what the user typed. This is a precision guard,
+    // not a game range.
+    if (!Number.isSafeInteger(Number(text))) {
+      return 'That number is too large to submit accurately.'
+    }
+    return null
   }
 
-  if (!Number.isInteger(numericValue)) {
-    return 'Guesses must be a whole number.'
+  // Not a whole number: tell decimals apart from other non-numeric input.
+  if (/^-?(\d+\.\d*|\.\d+)$/.test(text)) {
+    return 'Guesses must be a whole number (no decimals).'
   }
 
-  if (numericValue < min || numericValue > max) {
-    return `Enter a number between ${min} and ${max}.`
-  }
-
-  return null
+  return 'Guesses must be a number, using digits only (for example 42 or -5).'
 }
 
 export function hasErrors(errors) {

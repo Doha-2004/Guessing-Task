@@ -13,7 +13,7 @@ import { ApiError } from '../services/api'
  * whatever they return — it does not decide Higher/Lower/Correct itself.
  */
 export function useGame() {
-  const { logout } = useAuth()
+  const { logout, refreshCurrentUser } = useAuth()
   const navigate = useNavigate()
 
   const [game, setGame] = useState(null)
@@ -55,9 +55,15 @@ export function useGame() {
   }, [loadGame])
 
   async function submitGuess() {
-    if (!game || game.status !== GAME_STATUS.IN_PROGRESS || isSubmitting) return
+    if (isSubmitting) return
 
-    const validationError = validateGuess(guess, game.minNumber, game.maxNumber)
+    // Tell the user why nothing happens instead of silently ignoring Submit.
+    if (!game || game.status !== GAME_STATUS.IN_PROGRESS) {
+      setInputError("This game isn't active, so guesses can't be submitted.")
+      return
+    }
+
+    const validationError = validateGuess(guess)
     if (validationError) {
       setInputError(validationError)
       return
@@ -78,6 +84,12 @@ export function useGame() {
         targetNumber: result.targetNumber ?? previous.targetNumber,
       }))
       setGuess('')
+
+      if (result.isWon) {
+        // Same as the Daily game: bestScore / gamesPlayed / gamesWon live on
+        // the user's profile, so refresh it or Dashboard/Profile show old stats.
+        await refreshCurrentUser()
+      }
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         await handleUnauthorized()
@@ -101,9 +113,8 @@ export function useGame() {
     guessHistory: game?.guesses ?? [],
     feedback,
     gameStatus: game?.status ?? GAME_STATUS.IN_PROGRESS,
+    isGameActive: game?.status === GAME_STATUS.IN_PROGRESS,
     targetNumber: game?.targetNumber ?? null,
-    minNumber: game?.minNumber,
-    maxNumber: game?.maxNumber,
     bestScore: lastResult?.bestScore ?? null,
     isNewPersonalBest: lastResult?.isNewPersonalBest ?? false,
     inputError,

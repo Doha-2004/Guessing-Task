@@ -64,9 +64,15 @@ export default function DailyGame() {
   }, [loadDaily])
 
   async function handleSubmitGuess() {
-    if (!daily || daily.status !== GAME_STATUS.IN_PROGRESS || isSubmitting) return
+    if (isSubmitting) return
 
-    const validationError = validateGuess(guess, daily.minNumber, daily.maxNumber)
+    // Tell the user why nothing happens instead of silently ignoring Submit.
+    if (!daily || daily.status !== GAME_STATUS.IN_PROGRESS) {
+      setInputError("Today's challenge isn't active, so guesses can't be submitted.")
+      return
+    }
+
+    const validationError = validateGuess(guess)
     if (validationError) {
       setInputError(validationError)
       return
@@ -120,8 +126,6 @@ export default function DailyGame() {
       <GameHeader
         title="Today's Challenge"
         description="Guess today's hidden number."
-        min={daily?.minNumber}
-        max={daily?.maxNumber}
         attempts={daily?.guessCount ?? 0}
       />
 
@@ -155,8 +159,8 @@ export default function DailyGame() {
             setGuess={setGuess}
             onSubmit={handleSubmitGuess}
             error={inputError}
-            min={daily?.minNumber}
-            max={daily?.maxNumber}
+            disabled={daily?.status !== GAME_STATUS.IN_PROGRESS}
+            disabledMessage="Today's challenge is no longer active, so guesses can't be submitted."
             isSubmitting={isSubmitting}
           />
           <GuessFeedback feedback={feedback} />

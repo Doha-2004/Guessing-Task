@@ -20,9 +20,8 @@ export default function PracticeGame() {
     guessHistory,
     feedback,
     gameStatus,
+    isGameActive,
     targetNumber,
-    minNumber,
-    maxNumber,
     bestScore,
     inputError,
     isLoading,
@@ -45,8 +44,6 @@ export default function PracticeGame() {
       <GameHeader
         title="Practice Mode"
         description="Find the hidden number using the Higher / Lower hints."
-        min={minNumber}
-        max={maxNumber}
         attempts={attempts}
       />
 
@@ -67,8 +64,8 @@ export default function PracticeGame() {
             setGuess={setGuess}
             onSubmit={submitGuess}
             error={inputError}
-            min={minNumber}
-            max={maxNumber}
+            disabled={!isGameActive}
+            disabledMessage="This game is no longer active, so guesses can't be submitted."
             isSubmitting={isSubmitting}
           />
           <GuessFeedback feedback={feedback} />
